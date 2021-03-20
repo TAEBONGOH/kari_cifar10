@@ -1,5 +1,10 @@
+import os
 import argparse
+import torch
 import torchvision
+from models.vgg import vgg11_bn
+import torch.nn as nn
+import torch.optim as optim
 
 def train(opt):
     epochs = opt.epochs
@@ -11,7 +16,21 @@ def train(opt):
     train_dataset = torchvision.datasets.CIFAR10('./data', train=True, download=True, transform=transforms)
     classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
-    pass # debug breakpoint
+    num_workers = min([os.cpu_count(), batch_size])
+    train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, 
+                            shuffle=True, num_workers=num_workers, drop_last=True)
+
+    # Network model
+    model = vgg11_bn()
+    
+    # Loss function and optimizer
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+    
+    for i, (imgs, targets) in enumerate(train_dataloader):
+        print('batch idx=%d/%d' % (i, len(train_dataloader)-1))
+        pass # debug checkpoint
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
