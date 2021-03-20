@@ -1,12 +1,17 @@
 import argparse
+import torchvision
 
 def train(opt):
     epochs = opt.epochs
     batch_size = opt.batch_size
     name = opt.name
-    print(epochs)
-    print(batch_size)
-    print(name)
+
+    # Train dataset
+    transforms = torchvision.transforms.ToTensor()
+    train_dataset = torchvision.datasets.CIFAR10('./data', train=True, download=True, transform=transforms)
+    classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+
+    pass # debug breakpoint
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
