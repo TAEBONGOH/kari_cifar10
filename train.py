@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.transforms as transforms
+from models.my_simple_model import MySimpleModel  # simple model
 
 def train(opt):
     epochs = opt.epochs
@@ -39,7 +40,8 @@ def train(opt):
                             shuffle=True, num_workers=num_workers, drop_last=True)
 
     # Network model
-    model = vgg11_bn()
+    #model = vgg11_bn()
+    model = MySimpleModel()
     
     # GPU-support
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -50,6 +52,9 @@ def train(opt):
     # Loss function and optimizer
     loss_fn = nn.CrossEntropyLoss()
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+
+    # Learning rate scheduler
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 
     # Loading a weight file (if exists)
     weight_file = Path('weights')/(name + '.pth')
@@ -71,7 +76,8 @@ def train(opt):
         epoch_loss = train_one_epoch(train_dataloader, model, loss_fn, optimizer, device)
         t1 = time.time()
         print('loss=%.4f (took %.2f sec)\n' % (epoch_loss, t1-t0))
-        
+        lr_scheduler.step()
+
         # validation
         val_epoch_loss, accuracy = val_one_epoch(val_dataloader, model, loss_fn, device)
         print('[validation] loss=%.4f, accuracy=%.4f' % (val_epoch_loss, accuracy))
@@ -131,7 +137,7 @@ def val_one_epoch(val_dataloader, model, loss_fn, device):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--epochs', type=int, default=200, help='target epochs')
-    parser.add_argument('--batch-size', type=int, default=128, help='batch size')
+    parser.add_argument('--batch-size', type=int, default=1024, help='batch size')
     parser.add_argument('--name', default='tboh', help='name for the run')
 
     opt = parser.parse_args()
