@@ -9,7 +9,8 @@ import time
 from pathlib import Path
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.transforms as transforms
-from models.my_simple_model import MySimpleModel  # simple model
+#from models.my_simple_model import MySimpleModel  # simple model
+from apex import amp
 
 def train(opt):
     epochs = opt.epochs
@@ -40,8 +41,8 @@ def train(opt):
                             shuffle=True, num_workers=num_workers, drop_last=True)
 
     # Network model
-    #model = vgg11_bn()
-    model = MySimpleModel()
+    model = vgg11_bn()
+    #model = MySimpleModel()
     
     # GPU-support
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -53,6 +54,9 @@ def train(opt):
     loss_fn = nn.CrossEntropyLoss()
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
+    # apex
+    model, optimizer = amp.initialize(model, optimizer, opt_level='O2')
+    
     # Learning rate scheduler
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 
@@ -64,6 +68,8 @@ def train(opt):
     if os.path.exists(weight_file):
         checkpoint = torch.load(weight_file)
         model.load_state_dict(checkpoint['model'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        amp.load_state_dict(checkpoint['amp'])
         start_epoch = checkpoint['epoch'] + 1
         best_accuracy = checkpoint['best_accuracy']
         print('resumed from epoch %d' % start_epoch)
@@ -86,12 +92,14 @@ def train(opt):
         if accuracy > best_accuracy:
             best_weight_file = Path('weights')/(name + '_best.pth')
             best_accuracy = accuracy
-            state = {'model': model.state_dict(), 'epoch': epoch, 'best_accuracy': best_accuracy}
+            state = {'model': model.state_dict(), 'optimizer': optimizer.state_dict(),
+                     'amp': amp.state_dict(), 'epoch': epoch, 'best_accuracy': best_accuracy}
             torch.save(state, best_weight_file)
             print('best accuracy=>saved\n')
         
         # saving the current status into a weight file
-        state = {'model': model.state_dict(), 'epoch': epoch, 'best_accuracy': best_accuracy}
+        state = {'model': model.state_dict(), 'optimizer': optimizer.state_dict(),
+                 'amp': amp.state_dict(), 'epoch': epoch, 'best_accuracy': best_accuracy}
         torch.save(state, weight_file)
 
         # tensorboard logging
@@ -107,8 +115,9 @@ def train_one_epoch(train_dataloader, model, loss_fn, optimizer, device):
         imgs, targets = imgs.to(device), targets.to(device)
         preds = model(imgs)      # forward
         loss = loss_fn(preds, targets) # calculates the iteration loss
-        optimizer.zero_grad()  # zeros the parameter gradients
-        loss.backward()        # backward
+        with amp.scale_loss(loss, optimizer) as scale_loss:
+            scale_loss.backward()
+        #loss.backward()        # backward
         optimizer.step()       # update weights
 
         # print the iteration loss every 100 iterations
