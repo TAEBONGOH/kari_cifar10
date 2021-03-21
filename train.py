@@ -8,6 +8,7 @@ import torch.optim as optim
 import time
 from pathlib import Path
 from torch.utils.tensorboard import SummaryWriter
+import torchvision.transforms as transforms
 
 def train(opt):
     epochs = opt.epochs
@@ -18,16 +19,22 @@ def train(opt):
     log_dir = Path('logs')/name
     tb_writer = SummaryWriter(log_dir=log_dir)
 
+    # Augmentation
+    train_transforms = transforms.Compose([transforms.RandomCrop(32, padding=4),
+                transforms.RandomHorizontalFlip(), transforms.ToTensor(),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2471, 0.2435, 0.2616))])
+    val_transforms = transforms.Compose([transforms.ToTensor(),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2471, 0.2435, 0.2616))])
+
     # Train dataset
-    transforms = torchvision.transforms.ToTensor()
-    train_dataset = torchvision.datasets.CIFAR10('./data', train=True, download=True, transform=transforms)
+    train_dataset = torchvision.datasets.CIFAR10('./data', train=True, download=True, transform=train_transforms)
     classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
     num_workers = min([os.cpu_count(), batch_size])
     train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, 
                             shuffle=True, num_workers=num_workers, drop_last=True)
 
     # Validation dataset
-    val_dataset = torchvision.datasets.CIFAR10('./data', train=False, download=True, transform=transforms)
+    val_dataset = torchvision.datasets.CIFAR10('./data', train=False, download=True, transform=val_transforms)
     val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, 
                             shuffle=True, num_workers=num_workers, drop_last=True)
 
