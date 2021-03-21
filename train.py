@@ -6,11 +6,17 @@ from models.vgg import vgg11_bn
 import torch.nn as nn
 import torch.optim as optim
 import time
+from pathlib import Path
+from torch.utils.tensorboard import SummaryWriter
 
 def train(opt):
     epochs = opt.epochs
     batch_size = opt.batch_size
     name = opt.name
+
+    # Tensorboard settins
+    log_dir = Path('logs')/name
+    tb_writer = SummaryWriter(log_dir=log_dir)
 
     # Train dataset
     transforms = torchvision.transforms.ToTensor()
@@ -37,10 +43,23 @@ def train(opt):
     # Loss function and optimizer
     loss_fn = nn.CrossEntropyLoss()
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
-    
+
+    # Loading a weight file (if exists)
+    weight_file = Path('weights')/(name + '.pth')
+    best_accuracy = 0.0
+        
     start_epoch, end_epoch = (0, epochs)
+    if os.path.exists(weight_file):
+        checkpoint = torch.load(weight_file)
+        model.load_state_dict(checkpoint['model'])
+        start_epoch = checkpoint['epoch'] + 1
+        best_accuracy = checkpoint['best_accuracy']
+        print('resumed from epoch %d' % start_epoch)
+
     for epoch in range(start_epoch, end_epoch):
         print('epoch: %d/%d' % (epoch, end_epoch-1))
+
+        # Training
         t0 = time.time()
         epoch_loss = train_one_epoch(train_dataloader, model, loss_fn, optimizer, device)
         t1 = time.time()
@@ -49,6 +68,24 @@ def train(opt):
         # validation
         val_epoch_loss, accuracy = val_one_epoch(val_dataloader, model, loss_fn, device)
         print('[validation] loss=%.4f, accuracy=%.4f' % (val_epoch_loss, accuracy))
+
+        # Saving the best status into a weight file
+        if accuracy > best_accuracy:
+            best_weight_file = Path('weights')/(name + '_best.pth')
+            best_accuracy = accuracy
+            state = {'model': model.state_dict(), 'epoch': epoch, 'best_accuracy': best_accuracy}
+            torch.save(state, best_weight_file)
+            print('best accuracy=>saved\n')
+        
+        # saving the current status into a weight file
+        state = {'model': model.state_dict(), 'epoch': epoch, 'best_accuracy': best_accuracy}
+        torch.save(state, weight_file)
+
+        # tensorboard logging
+        tb_writer.add_scalar('train_epoch_loss', epoch_loss, epoch)
+        tb_writer.add_scalar('val_epoch_loss', val_epoch_loss, epoch)
+        tb_writer.add_scalar('val_accuracy', accuracy, epoch)
+        
 
 def train_one_epoch(train_dataloader, model, loss_fn, optimizer, device):
     model.train()
